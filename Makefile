@@ -172,7 +172,7 @@ endif
 DISTFILES = src nnn.1 Makefile README.md LICENSE
 SRC = src/nnn.c
 HEADERS = src/nnn.h
-BIN = nnn
+BIN = tnn
 DESKTOPFILE = misc/desktop/nnn.desktop
 LOGOSVG = misc/logo/logo.svg
 LOGO64X64 = misc/logo/logo-64x64.png
