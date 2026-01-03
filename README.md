@@ -30,6 +30,7 @@ tnn 是 nnn 的 fork，主要目标是提供接近 Total Commander 的操作习�
 - `[` 访问上次标记的目录。
 - `Ctrl+X` 退出程序。
 - `Alt+1` .. `Alt+8` 切换 tab 页。
+- `Alt[+Shift]+Enter` 输出当前目录所有文件和子目录大小，排序显示。
 
 ## 未改动的原有快捷键
 

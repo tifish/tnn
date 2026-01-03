@@ -30,6 +30,7 @@ tnn is a fork of nnn, with the primary goal of providing an operation experience
 - `[` visit last marked directory.
 - `Ctrl+X` quit program.
 - `Alt+1` .. `Alt+8` switch tabs.
+- `Alt[+Shift]+Enter` show all sub-directories and files sorted sizes in current directory.
 
 ## Unchanged Original Keybindings
 

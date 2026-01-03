@@ -3489,14 +3489,6 @@ static int filterentries(char *path, char *lastname)
 			showfilter(ln);
 			continue;
 
-			// ESC 清除过滤字符
-			case ESC:
-			{
-				clearfilter();
-				*ch = CONTROL('R');
-				goto end;
-			}
-
 			// DEL 删除文件
 			case KEY_DC:
 			{
@@ -3514,17 +3506,26 @@ static int filterentries(char *path, char *lastname)
 			goto end;
 		}
 #endif
-		// ESC 用来清除过滤字符，所以这里禁用
-		// case ESC:
-		// 	if (handle_alt_key(ch) != ERR) {
-		// 		if (*ch == ESC) /* Handle Alt+Esc */
-		// 			*ch = 'q'; /* Quit context */
-		// 		else {
-		// 			unget_wch(*ch);
-		// 			*ch = ';'; /* Run plugin */
-		// 		}
-		// 	}
-		// 	goto end;
+		case ESC:
+			if (handle_alt_key(ch) != ERR) {
+				if (*ch == ESC) /* Handle Alt+Esc */
+					*ch = 'q'; /* Quit context */
+				// Alt[+Shift]+Enter 输出当前目录所有文件和子目录大小，排序显示
+				else if (*ch == '\r') {
+					spawn(utils[UTIL_SH_EXEC], "-c", "du -sh \"$0\"/* 2>/dev/null | sort -hr", path, F_CLI|F_CONFIRM);
+					continue;
+				}
+				else {
+					unget_wch(*ch);
+					*ch = ';'; /* Run plugin */
+				}
+			}
+			// ESC 清除过滤字符
+			else {
+				clearfilter();
+				*ch = CONTROL('R');
+			}
+			goto end;
 		}
 
 		if (r != OK) /* Handle Fn keys in main loop */
