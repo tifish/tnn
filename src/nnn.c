@@ -431,9 +431,14 @@ typedef struct {
 /* Configuration, contexts */
 static settings cfg = {
 	.ctxactive = 1,
-	.autoenter = 1,
+	// 过滤匹配时，不要自动进入目录
+	.autoenter = 0,
 	.timetype = 2, /* T_MOD */
 	.rollover = 1,
+	// 默认进入过滤模式
+	.filtermode = 1,
+	// 默认显示详细信息
+	.showdetail = 1,
 };
 
 alignas(max_align_t) static context g_ctx[CTX_MAX];
@@ -536,7 +541,11 @@ alignas(max_align_t) static char g_tmpfpath[TMP_LEN_MAX];
 alignas(max_align_t) static char g_pipepath[TMP_LEN_MAX];
 
 /* Non-persistent runtime states */
-static runstate g_state;
+static runstate g_state = {
+	// 选择文件时，光标不自动移动
+	.stayonsel = 1,
+	.forcequit = 1,
+};
 
 /* Options to identify file MIME */
 #ifdef __APPLE__
@@ -3150,7 +3159,7 @@ static inline int handle_event(void)
 {
 	if (nselected && isselfileempty())
 		clearselection();
-	return CONTROL('L');
+	return CONTROL('R');
 }
 
 /*
@@ -3184,7 +3193,7 @@ try_quit:
 			i = get_wch(&c);
 			if (i != ERR) {
 				if (c == ESC)
-					c = CONTROL('L');
+					c = CONTROL('R');
 				else {
 					unget_wch(c);
 					c = ';';
@@ -3205,8 +3214,8 @@ try_quit:
 		}
 
 		if (i == ERR && presel == MSGWAIT)
-			c = (cfg.filtermode || filterset()) ? FILTER : CONTROL('L');
-		else if (c == FILTER || c == CONTROL('L'))
+			c = (cfg.filtermode || filterset()) ? FILTER : CONTROL('R');
+		else if (c == FILTER || c == CONTROL('R'))
 			/* Clear previous filter when manually starting */
 			clearfilter();
 	}
@@ -3439,7 +3448,8 @@ static int filterentries(char *path, char *lastname)
 			showfilter(ln);
 			continue;
 #endif
-		case KEY_DC: // fallthrough
+		// DEL 用来删除文件了，所以这里禁用
+		// case KEY_DC: // fallthrough
 		case KEY_BACKSPACE: // fallthrough
 		case '\b': // fallthrough
 		case DEL: /* handle DEL */
@@ -3448,24 +3458,25 @@ static int filterentries(char *path, char *lastname)
 				wcstombs(ln, wln, REGEX_MAX);
 				ndents = total;
 			} else {
-				*ch = FILTER;
+				// 如果过滤字符都删除了，就返回上一级目录
+				*ch = KEY_LEFT;
 				goto end;
 			}
 			// fallthrough
-		case CONTROL('L'):
-			if (*ch == CONTROL('L')) {
-				if (wln[1]) {
-					ln[REGEX_MAX - 1] = ln[1];
-					ln[1] = wln[1] = '\0';
-					len = 1;
-					ndents = total;
-				} else if (ln[REGEX_MAX - 1]) { /* Show the previous filter */
-					ln[1] = ln[REGEX_MAX - 1];
-					ln[REGEX_MAX - 1] = '\0';
-					len = mbstowcs(wln, ln, REGEX_MAX);
-				} else
-					goto end;
-			}
+		// case CONTROL('L'):
+		// 	if (*ch == CONTROL('L')) {
+		// 		if (wln[1]) {
+		// 			ln[REGEX_MAX - 1] = ln[1];
+		// 			ln[1] = wln[1] = '\0';
+		// 			len = 1;
+		// 			ndents = total;
+		// 		} else if (ln[REGEX_MAX - 1]) { /* Show the previous filter */
+		// 			ln[1] = ln[REGEX_MAX - 1];
+		// 			ln[REGEX_MAX - 1] = '\0';
+		// 			len = mbstowcs(wln, ln, REGEX_MAX);
+		// 		} else
+		// 			goto end;
+		// 	}
 
 			/* Go to the top, we don't know if the hovered file will match the filter */
 			cur = 0;
@@ -3475,6 +3486,21 @@ static int filterentries(char *path, char *lastname)
 
 			showfilter(ln);
 			continue;
+
+			// ESC 清除过滤字符
+			case ESC:
+			{
+				clearfilter();
+				*ch = CONTROL('R');
+				goto end;
+			}
+
+			// DEL 删除文件
+			case KEY_DC:
+			{
+				*ch = 'X';
+				goto end;
+			}
 #ifndef NOMOUSE
 		case KEY_MOUSE:
 		{
@@ -3486,16 +3512,17 @@ static int filterentries(char *path, char *lastname)
 			goto end;
 		}
 #endif
-		case ESC:
-			if (handle_alt_key(ch) != ERR) {
-				if (*ch == ESC) /* Handle Alt+Esc */
-					*ch = 'q'; /* Quit context */
-				else {
-					unget_wch(*ch);
-					*ch = ';'; /* Run plugin */
-				}
-			}
-			goto end;
+		// ESC 用来清除过滤字符，所以这里禁用
+		// case ESC:
+		// 	if (handle_alt_key(ch) != ERR) {
+		// 		if (*ch == ESC) /* Handle Alt+Esc */
+		// 			*ch = 'q'; /* Quit context */
+		// 		else {
+		// 			unget_wch(*ch);
+		// 			*ch = ';'; /* Run plugin */
+		// 		}
+		// 	}
+		// 	goto end;
 		}
 
 		if (r != OK) /* Handle Fn keys in main loop */
@@ -3511,10 +3538,15 @@ static int filterentries(char *path, char *lastname)
 
 			if (cfg.filtermode) {
 				switch (*ch) {
+				case ' ': // 空格选择文件
+				case '*': // 切换可执行权限
 				case '\'': // fallthrough /* Go to first non-dir file */
 				case '+': // fallthrough /* Toggle file selection */
 				case ',': // fallthrough /* Mark CWD */
-				case '-': // fallthrough /* Visit last visited dir */
+				// 需要用于文件名过滤，所以这里禁用。可以用 Alt+- 代替，实际功能已经改为取消选择。
+				// case '-': // fallthrough /* Visit last visited dir */
+				// 用 [ 代替 - 作为访问上次访问目录的键。
+				case '[': // fallthrough /* Visit last visited dir */
 				case '.': // fallthrough /* Show hidden files */
 				case ';': // fallthrough /* Run plugin key */
 				case '=': // fallthrough /* Launch app */
@@ -3603,7 +3635,9 @@ end:
 	copycurname();
 
 	curs_set(FALSE);
-	settimeout();
+	// 这里原本是为了取消 nextsel 中的等待用户输入操作。
+	// 但 settimeout() 会导致延迟 1 秒，这里直接设置 1 毫秒就不会延迟了。
+	timeout(1);
 
 	/* Return keys for navigation etc. */
 	return *ch;
@@ -3791,7 +3825,7 @@ static char *xreadline(const char *prefill, const char *prompt)
 				printmsg(prompt);
 				len = pos;
 				continue;
-			case CONTROL('L'):
+			case CONTROL('R'):
 				printmsg(prompt);
 				len = pos = 0;
 				continue;
@@ -7450,7 +7484,7 @@ begin:
 	if (g_state.interrupt) {
 		g_state.interrupt = cfg.apparentsz = cfg.blkorder = 0;
 		blk_shift = BLK_SHIFT_512;
-		presel = CONTROL('L');
+		presel = CONTROL('R');
 	}
 
 #ifdef LINUX_INOTIFY
@@ -7494,6 +7528,8 @@ nochange:
 		sel = nextsel(presel);
 		if (presel)
 			presel = 0;
+		else // 如果用户没有输入操作，则默认进入过滤模式
+			presel = FILTER;
 
 		switch (sel) {
 #ifndef NOMOUSE
@@ -8194,6 +8230,11 @@ nochange:
 			if (cfg.x11)
 				plugscript(utils[UTIL_CBCP], F_NOWAIT | F_NOTRACE);
 #endif
+			continue;
+		// Ctrl+- 取消选择
+		case SEL_SELNONE:
+			clearselection();
+			presel = CONTROL('R');
 			continue;
 		case SEL_SELEDIT:
 			r = editselection();
