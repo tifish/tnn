@@ -439,6 +439,8 @@ static settings cfg = {
 	.filtermode = 1,
 	// 默认显示详细信息
 	.showdetail = 1,
+	// 纯命令行界面，不要使用桌面应用打开文件。
+	.cliopener = 1,
 };
 
 alignas(max_align_t) static context g_ctx[CTX_MAX];
@@ -7846,6 +7848,12 @@ nochange:
 					printwait(messages[MSG_INVALID_KEY], &presel);
 					goto nochange;
 				}
+			}
+
+			// 如果文件有可执行权限，则直接执行。
+			if (pent->mode & 0100 && sel == SEL_OPEN){
+				spawn(newpath, NULL, NULL, NULL, F_CLI | F_CONFIRM);
+				goto nochange;
 			}
 
 			/* Invoke desktop opener as last resort */

@@ -11,6 +11,7 @@ tnn is a fork of nnn, with the primary goal of providing an operation experience
 - Always stay in filter mode.
 - `BACKSPACE` returns to the parent directory when there are no filter characters.
 - `ESC` clears filter characters.
+- `ENTER` run executable file directly.
 - `F2` rename file.
 - `F3` show file details.
 - `F4` edit file.
